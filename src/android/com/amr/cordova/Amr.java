@@ -37,6 +37,8 @@ import admost.sdk.listener.AdMostAdListener;
 import admost.sdk.listener.AdMostInitListener;
 import admost.sdk.listener.AdMostViewListener;
 import com.amr.plugin.cordova.AmrAdActivity;
+import admost.sdk.base.AdMostRemoteConfig;
+import admost.sdk.base.AdMostLog;
 
 public class Amr extends CordovaPlugin {
     /**
@@ -64,8 +66,10 @@ public class Amr extends CordovaPlugin {
     private static final String ACTION_DESTROY_REWARDED_VIDEO = "destroyRewardedVideo";
     private static final String ACTION_LOAD_AND_SHOW_REWARDED_VIDEO = "loadAndShowRewardedVideo";
 
-    private static final String ACTION_TRACK_PURCHASE_FOR_ANDROID = "trackPurchaseForAndroid";
+    private static final String ACTION_TRACK_IAP = "trackIAP";
     private static final String ACTION_IS_PRIVACY_CONSENT_REQUIRED = "isPrivacyConsentRequired";
+
+    private static final String ACTION_GET_REMOTE_CONFIG_STRING = "getRemoteConfigString";
 
     /**
      * config
@@ -199,6 +203,7 @@ public class Amr extends CordovaPlugin {
         if (ACTION_SET_CONFIG.equals(action)) {
             JSONObject config = inputs.optJSONObject(0);
             result = executeAMRSdkConfig(config, callbackContext);
+
         } else if (ACTION_START_WITH_CONFIG.equals(action)) {
             JSONObject config = inputs.optJSONObject(0);
             result = executeStartWithConfig(config, callbackContext);
@@ -228,7 +233,6 @@ public class Amr extends CordovaPlugin {
         } else if (ACTION_DESTROY_REWARDED_VIDEO.equals(action)) {
             result = executeDestroyRewardedVideo(callbackContext);
 
-
         } else if (ACTION_LOAD_BANNER.equals(action)) {
             JSONObject config = inputs.optJSONObject(0);
             result = executeLoadBanner(config, callbackContext);
@@ -237,8 +241,8 @@ public class Amr extends CordovaPlugin {
             result = executeHideBanner(callbackContext);
 
         } else if (ACTION_DESTROY_BANNER.equals(action)) {
-
             result = executeDestroyBanner(callbackContext);
+
         } else if (ACTION_LOAD_AND_SHOW_REWARDED_VIDEO.equals(action)) {
             JSONObject config = inputs.optJSONObject(0);
             result = executeShowRewardedVideoWithActivity(config, callbackContext);
@@ -249,6 +253,14 @@ public class Amr extends CordovaPlugin {
 
         } else if (ACTION_IS_PRIVACY_CONSENT_REQUIRED.equals(action)) {
             result = executeIsPrivacyConsentRequired();
+
+        } else if (ACTION_GET_REMOTE_CONFIG_STRING.equals(action)) {
+            JSONObject config = inputs.optJSONObject(0);
+            result = executeGetRemoteConfigString(config, callbackContext);
+
+         } else if(ACTION_TRACK_IAP.equals(action)) {
+            JSONObject config = inputs.optJSONObject(0);
+            result = executeTrackIAP(config, callbackContext);
 
         } else {
             Log.d(LOGTAG, String.format("Invalid action passed: %s", action));
@@ -346,6 +358,20 @@ public class Amr extends CordovaPlugin {
         }
     }
 
+    private PluginResult executeGetRemoteConfigString(JSONObject config, final CallbackContext callbackContext) {
+        String key = "";
+        String defValue = "";
+
+        if (config.has("key")) key = config.optString("key");
+        if (config.has("value")) defValue = config.optString("value");
+
+        String value = AdMostRemoteConfig.getInstance().getString(key,defValue);
+
+        callbackContext.success(value);
+
+        return null;
+    }
+
     private PluginResult executeLoadBanner(JSONObject config, final CallbackContext callbackContext) {
 
         this.AMRSdkConfig(config);
@@ -390,9 +416,7 @@ public class Amr extends CordovaPlugin {
     }
 
     private PluginResult executeIsPrivacyConsentRequired() {
-        
-        Context context = cordova.getActivity().getApplicationContext();
-        AdMost.getInstance().setPrivacyConsentListener(context, new AdMost.PrivacyConsentListener() {
+        AdMost.getInstance().setPrivacyConsentListener(cordova.getActivity().getApplicationContext(), new AdMost.PrivacyConsentListener() {
             @Override
             public void isPrivacyConsentRequired(String status) {
                 cordova.getActivity().runOnUiThread(new Runnable() {
@@ -403,6 +427,37 @@ public class Amr extends CordovaPlugin {
                 });
             }
         });
+
+        return null;
+    }
+
+    private PluginResult executeTrackIAP(JSONObject config, final CallbackContext callbackContext){
+        String purchaseData, signature, currency;
+        String[] tags;
+        Float priceAmountMicros;
+        Boolean isDebug = false;
+
+        if (config == null) return null;
+        if (config.has("receipt"))  purchaseData = config.optString("receipt");
+        else return null;
+        if (config.has("signature")) signature = config.optString("signature");
+        else return null;
+        if (config.has("priceAmountMicros")) priceAmountMicros = (float) config.optDouble("priceAmountMicros");
+        else return null;
+        if (config.has("currency")) currency = config.optString("currency");
+        else return null;
+        if (config.has("tags")) {
+            JSONArray tagsArray = config.optJSONArray("tags");
+            tags = new String[tagsArray.length()];
+
+            for(int i=0; i<tags.length; i++) {
+                tags[i]=tagsArray.optString(i);
+            }
+        }
+        else tags = new String[0];
+        if (config.has("isDebug")) isDebug = config.optBoolean("isDebug");
+
+        AdMost.getInstance().trackIAP(purchaseData, signature, priceAmountMicros, currency, tags, isDebug);
 
         return null;
     }
